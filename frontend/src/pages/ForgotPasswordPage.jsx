@@ -5,6 +5,7 @@ import { Mail, KeyRound, Lock, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle 
 import authService from '../services/authService';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import GradientText from '../components/ui/GradientText';
+import AuthGraphicBackground from '../components/auth/AuthGraphicBackground';
 
 export const ForgotPasswordPage = () => {
   const [step, setStep] = useState(1); // 1: enter email, 2: enter code & new password
@@ -73,16 +74,22 @@ export const ForgotPasswordPage = () => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-16 relative overflow-hidden">
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
-
+    <AuthGraphicBackground>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="max-w-md w-full relative z-10"
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        className="max-w-md w-full relative my-8"
       >
-        <div className="p-8 sm:p-10 rounded-3xl bg-[#0b051c]/80 border border-white/[0.08] backdrop-blur-2xl shadow-2xl shadow-purple-950/50 space-y-6">
+        <div className="relative p-8 sm:p-10 rounded-3xl bg-[#0b051c]/85 border border-white/[0.12] backdrop-blur-2xl shadow-[0_0_60px_rgba(139,92,246,0.22)] space-y-6 overflow-hidden">
+          {/* Top Decorative Gradient Shimmer Bar */}
+          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-400" />
+
+          {/* Precision Alignment Crosses */}
+          <span className="absolute top-3 left-3 text-slate-500/30 font-mono text-[10px] select-none pointer-events-none">+</span>
+          <span className="absolute top-3 right-3 text-slate-500/30 font-mono text-[10px] select-none pointer-events-none">+</span>
+          <span className="absolute bottom-3 left-3 text-slate-500/30 font-mono text-[10px] select-none pointer-events-none">+</span>
+          <span className="absolute bottom-3 right-3 text-slate-500/30 font-mono text-[10px] select-none pointer-events-none">+</span>
           <div className="text-center space-y-2">
             <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-violet-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-950/50">
               <KeyRound size={22} />
@@ -213,7 +220,7 @@ export const ForgotPasswordPage = () => {
           </div>
         </div>
       </motion.div>
-    </div>
+    </AuthGraphicBackground>
   );
 };
 
