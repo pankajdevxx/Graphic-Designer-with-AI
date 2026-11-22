@@ -479,7 +479,7 @@ Password recovery and reset endpoints.
 
 ---
 
-### 3.2 Orders & Razorpay Payments (`/api/v1/orders/`)
+## 3.2 Orders & Razorpay Payments (`/api/v1/orders/`)
 
 #### `POST /api/v1/orders/checkout/`
 Creates an `Order` in `pending` status, validates item prices and coupon codes, and initiates a Razorpay Order ID.
