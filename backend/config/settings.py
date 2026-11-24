@@ -92,22 +92,27 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# Database: MySQL Configuration with environment variables and SQLite fallback
-DB_ENGINE = os.getenv('DB_ENGINE', 'mysql').lower()
+# Database: MySQL Configuration with environment variables and intelligent SQLite fallback
+DB_ENGINE = os.getenv('DB_ENGINE', 'sqlite').lower()
 DB_NAME = os.getenv('DB_NAME', 'pixelgencreativity_db')
 DB_USER = os.getenv('DB_USER', 'root')
 DB_PASSWORD = os.getenv('DB_PASSWORD', '')
 DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
 DB_PORT = os.getenv('DB_PORT', '3306')
 
-if DB_ENGINE in ('sqlite', 'sqlite3'):
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
-else:
+def _check_mysql_reachable(host, port, timeout=0.8):
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        code = s.connect_ex((host, int(port)))
+        s.close()
+        return code == 0
+    except Exception:
+        return False
+
+# Use MySQL only if explicitly requested and port is open; otherwise fallback smoothly to SQLite
+if DB_ENGINE == 'mysql' and _check_mysql_reachable(DB_HOST, DB_PORT):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
@@ -120,6 +125,15 @@ else:
                 'charset': 'utf8mb4',
                 'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             },
+        }
+    }
+else:
+    if DB_ENGINE == 'mysql':
+        print(f"[PixelGen DB Notice] MySQL on {DB_HOST}:{DB_PORT} is unreachable. Seamlessly using local SQLite ({BASE_DIR / 'db.sqlite3'}).")
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 
