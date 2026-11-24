@@ -161,7 +161,23 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='new-arrivals')
     def new_arrivals(self, request):
         limit = int(request.query_params.get('limit', 8))
-        queryset = Product.objects.filter(status='active', is_new=True).order_by('-created_at')[:limit]
+        queryset = Product.objects.filter(status='active').order_by('-is_new', '-created_at')[:limit]
+        serializer = ProductListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def bestsellers(self, request):
+        limit = int(request.query_params.get('limit', 8))
+        queryset = Product.objects.filter(status='active').order_by('-sales_count', '-review_count')[:limit]
+        serializer = ProductListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def offers(self, request):
+        limit = int(request.query_params.get('limit', 8))
+        queryset = Product.objects.filter(status='active', on_sale=True).order_by('-discount', '-sales_count')[:limit]
+        if not queryset.exists():
+            queryset = Product.objects.filter(status='active').order_by('price')[:limit]
         serializer = ProductListSerializer(queryset, many=True)
         return Response(serializer.data)
 
