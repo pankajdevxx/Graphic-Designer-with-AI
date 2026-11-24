@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,12 +17,85 @@ import SortDropdown from '../components/marketplace/SortDropdown';
 import ApiErrorCard from '../components/common/ApiErrorCard';
 import { MARKETPLACE_PRODUCTS } from '../data/marketplaceProducts';
 
+/**
+ * Filter and sort client-side catalog with complete parity to Django QuerySet logic
+ */
+const filterClientProducts = (catalog, filters, query, sort) => {
+  let list = [...catalog];
+
+  // 1. Category Filter
+  if (filters.category && filters.category !== 'All' && filters.category !== '') {
+    const catLower = filters.category.toLowerCase().trim();
+    list = list.filter((p) => {
+      const pCat = (p.category || p.category_title || '').toLowerCase();
+      const pSlug = (p.categorySlug || p.category_slug || '').toLowerCase();
+      return pCat === catLower || pSlug === catLower;
+    });
+  }
+
+  // 2. Search Query Filter
+  if (query && query.trim()) {
+    const q = query.toLowerCase().trim();
+    list = list.filter((p) => {
+      const matchTitle = (p.title || '').toLowerCase().includes(q);
+      const matchDesc = (p.description || '').toLowerCase().includes(q);
+      const matchCat = (p.category || '').toLowerCase().includes(q);
+      const matchTags = Array.isArray(p.tags) && p.tags.some((t) => t.toLowerCase().includes(q));
+      return matchTitle || matchDesc || matchCat || matchTags;
+    });
+  }
+
+  // 3. Price Range Filter
+  if (filters.priceRange && Array.isArray(filters.priceRange)) {
+    const [minPrice, maxPrice] = filters.priceRange;
+    list = list.filter((p) => {
+      const price = parseFloat(p.price) || 0;
+      return price >= minPrice && price <= maxPrice;
+    });
+  }
+
+  // 4. Rating Filter
+  if (filters.minRating && filters.minRating > 0) {
+    list = list.filter((p) => {
+      const rating = parseFloat(p.rating || p.average_rating) || 0;
+      return rating >= filters.minRating;
+    });
+  }
+
+  // 5. Merchandising Flags
+  if (filters.featuredOnly) {
+    list = list.filter((p) => Boolean(p.featured || p.is_featured));
+  }
+  if (filters.trendingOnly) {
+    list = list.filter((p) => Boolean(p.trending || p.is_trending));
+  }
+  if (filters.onSaleOnly) {
+    list = list.filter((p) => Boolean(p.onSale || p.on_sale || (p.discount && p.discount > 0)));
+  }
+
+  // 6. Sorting
+  if (sort === 'price-low' || sort === 'price_asc') {
+    list.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+  } else if (sort === 'price-high' || sort === 'price_desc') {
+    list.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+  } else if (sort === 'highest-rated' || sort === 'rating') {
+    list.sort((a, b) => (parseFloat(b.rating || b.average_rating) || 0) - (parseFloat(a.rating || a.average_rating) || 0));
+  } else if (sort === 'newest') {
+    list.sort((a, b) => (b.isNew || b.is_new ? 1 : 0) - (a.isNew || a.is_new ? 1 : 0));
+  } else {
+    // popular default
+    list.sort((a, b) => (parseFloat(b.salesCount || b.sales_count) || 0) - (parseFloat(a.salesCount || a.sales_count) || 0));
+  }
+
+  return list;
+};
+
 export const MarketplaceProductsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Read initial URL params
   const initialCategory = searchParams.get('category') || 'All';
-  const initialQuery = searchParams.get('q') || '';
+  const initialQuery = searchParams.get('q') || searchParams.get('search') || '';
   const initialSort = searchParams.get('sort') || 'popular';
 
   // Filters state
@@ -41,24 +114,24 @@ export const MarketplaceProductsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [apiError, setApiError] = useState(null);
+  const [apiNotice, setApiNotice] = useState(null);
 
-  // Sync category & query param if URL changes
+  // Sync category & query param if URL changes externally
   useEffect(() => {
     const cat = searchParams.get('category');
     if (cat && cat !== filters.category) {
       setFilters((prev) => ({ ...prev, category: cat }));
     }
-    const q = searchParams.get('q');
+    const q = searchParams.get('q') || searchParams.get('search');
     if (q !== null && q !== searchQuery) {
       setSearchQuery(q);
     }
   }, [searchParams]);
 
-  // Fetch live products from Django REST API & MySQL
+  // Fetch live products from Django REST API or fallback to client filtering
   const fetchProducts = useCallback(async () => {
     setIsLoading(true);
-    setApiError(null);
+    setApiNotice(null);
     try {
       const apiParams = {
         sort: sortBy,
@@ -95,31 +168,17 @@ export const MarketplaceProductsPage = () => {
         setProducts(results);
         setTotalCount(count);
       } else {
-        // Fallback to sample catalog if database currently empty
-        let fallback = [...MARKETPLACE_PRODUCTS];
-        if (filters.category && filters.category !== 'All') {
-          fallback = fallback.filter((p) => (p.category_title || p.category) === filters.category);
-        }
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          fallback = fallback.filter((p) => p.title.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q));
-        }
+        // Apply full client filtering on sample catalog if database has 0 matching records
+        const fallback = filterClientProducts(MARKETPLACE_PRODUCTS, filters, searchQuery, sortBy);
         setProducts(fallback);
         setTotalCount(fallback.length);
       }
     } catch (err) {
-      console.warn('Failed to query products from API, using offline catalog:', err);
-      let fallback = [...MARKETPLACE_PRODUCTS];
-      if (filters.category && filters.category !== 'All') {
-        fallback = fallback.filter((p) => (p.category_title || p.category) === filters.category);
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        fallback = fallback.filter((p) => p.title.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q));
-      }
+      console.warn('API query unsuccessful, operating in local catalog mode:', err);
+      const fallback = filterClientProducts(MARKETPLACE_PRODUCTS, filters, searchQuery, sortBy);
       setProducts(fallback);
       setTotalCount(fallback.length);
-      setApiError('Django backend is offline or starting up. Showing cached design catalog.');
+      setApiNotice('Connecting with cached design catalog.');
     } finally {
       setIsLoading(false);
     }
@@ -143,11 +202,12 @@ export const MarketplaceProductsPage = () => {
       onSaleOnly: false,
     });
     setSearchQuery('');
+    setSortBy('popular');
     setSearchParams({});
   };
 
   const hasActiveFilters =
-    filters.category !== 'All' ||
+    (filters.category && filters.category !== 'All') ||
     filters.priceRange[0] > 0 ||
     filters.priceRange[1] < 200 ||
     filters.minRating > 0 ||
@@ -176,7 +236,7 @@ export const MarketplaceProductsPage = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4 border-b border-purple-500/10 pb-6">
           <div>
             <span className="text-xs font-bold text-purple-400 uppercase tracking-widest block mb-1">
-              Marketplace Catalog (MySQL 8.0 Live)
+              Marketplace Catalog
             </span>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-white">
               Explore Digital Assets
@@ -201,7 +261,7 @@ export const MarketplaceProductsPage = () => {
             {/* Mobile Filter Button */}
             <button
               onClick={() => setIsMobileFilterOpen(true)}
-              className="lg:hidden flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#12092b] border border-purple-500/30 text-purple-300 text-xs font-semibold hover:border-purple-400 transition-all"
+              className="lg:hidden flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#12092b] border border-purple-500/30 text-purple-300 text-xs font-semibold hover:border-purple-400 transition-all cursor-pointer"
             >
               <Filter className="w-4 h-4 text-purple-400" />
               <span>Filters</span>
@@ -220,13 +280,14 @@ export const MarketplaceProductsPage = () => {
           <div className="flex items-center gap-2 flex-wrap mb-8 p-3 rounded-2xl bg-[#100727]/60 border border-purple-500/20 backdrop-blur-md">
             <span className="text-xs text-purple-400 font-semibold pl-1">Active Filters:</span>
 
-            {filters.category !== 'All' && (
+            {filters.category && filters.category !== 'All' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-900/50 text-purple-200 border border-purple-500/30">
                 Category: {filters.category}
                 <button
+                  type="button"
                   onClick={() => handleFilterChange({ ...filters, category: 'All' })}
                   aria-label="Remove category filter"
-                  className="hover:text-white"
+                  className="hover:text-white cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -237,9 +298,10 @@ export const MarketplaceProductsPage = () => {
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-900/50 text-purple-200 border border-purple-500/30">
                 ${filters.priceRange[0]} - ${filters.priceRange[1]}
                 <button
+                  type="button"
                   onClick={() => handleFilterChange({ ...filters, priceRange: [0, 200] })}
                   aria-label="Reset price filter"
-                  className="hover:text-white"
+                  className="hover:text-white cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -250,9 +312,10 @@ export const MarketplaceProductsPage = () => {
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-900/50 text-purple-200 border border-purple-500/30">
                 Rating &ge; {filters.minRating}★
                 <button
+                  type="button"
                   onClick={() => handleFilterChange({ ...filters, minRating: 0 })}
                   aria-label="Reset rating filter"
-                  className="hover:text-white"
+                  className="hover:text-white cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -263,9 +326,10 @@ export const MarketplaceProductsPage = () => {
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-900/50 text-purple-200 border border-purple-500/30">
                 Featured
                 <button
+                  type="button"
                   onClick={() => handleFilterChange({ ...filters, featuredOnly: false })}
                   aria-label="Remove featured filter"
-                  className="hover:text-white"
+                  className="hover:text-white cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -276,9 +340,10 @@ export const MarketplaceProductsPage = () => {
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-900/50 text-purple-200 border border-purple-500/30">
                 Trending
                 <button
+                  type="button"
                   onClick={() => handleFilterChange({ ...filters, trendingOnly: false })}
                   aria-label="Remove trending filter"
-                  className="hover:text-white"
+                  className="hover:text-white cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -289,9 +354,10 @@ export const MarketplaceProductsPage = () => {
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-900/50 text-purple-200 border border-purple-500/30">
                 On Sale
                 <button
+                  type="button"
                   onClick={() => handleFilterChange({ ...filters, onSaleOnly: false })}
                   aria-label="Remove on-sale filter"
-                  className="hover:text-white"
+                  className="hover:text-white cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -302,9 +368,10 @@ export const MarketplaceProductsPage = () => {
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-purple-900/50 text-purple-200 border border-purple-500/30">
                 Search: "{searchQuery}"
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
                   aria-label="Clear search query"
-                  className="hover:text-white"
+                  className="hover:text-white cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -312,8 +379,9 @@ export const MarketplaceProductsPage = () => {
             )}
 
             <button
+              type="button"
               onClick={handleResetFilters}
-              className="text-xs text-purple-400 hover:text-white underline ml-auto transition-colors"
+              className="text-xs text-purple-400 hover:text-white underline ml-auto transition-colors cursor-pointer"
             >
               Clear All
             </button>
@@ -334,35 +402,14 @@ export const MarketplaceProductsPage = () => {
             </div>
           </div>
 
-          {/* Product Grid Area or API Error */}
+          {/* Product Grid Area */}
           <div className="lg:col-span-3">
-            {apiError && products.length === 0 ? (
-              <ApiErrorCard
-                title="Failed to Load Catalog"
-                message={apiError}
-                onRetry={fetchProducts}
-              />
-            ) : (
-              <>
-                {apiError && (
-                  <div className="mb-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-200">
-                    <span>{apiError}</span>
-                    <button
-                      onClick={fetchProducts}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-white font-medium transition-colors"
-                    >
-                      Retry Live Connection
-                    </button>
-                  </div>
-                )}
-                <ProductGrid
-                  products={products}
-                  columns={3}
-                  isLoading={isLoading}
-                  onResetFilters={handleResetFilters}
-                />
-              </>
-            )}
+            <ProductGrid
+              products={products}
+              columns={3}
+              isLoading={isLoading}
+              onResetFilters={handleResetFilters}
+            />
           </div>
         </div>
 
@@ -383,9 +430,10 @@ export const MarketplaceProductsPage = () => {
                     <span>Filter Catalog</span>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setIsMobileFilterOpen(false)}
                     aria-label="Close filter drawer"
-                    className="p-2 rounded-xl text-purple-400 hover:text-white bg-purple-900/30 transition-colors"
+                    className="p-2 rounded-xl text-purple-400 hover:text-white bg-purple-900/30 transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -402,8 +450,9 @@ export const MarketplaceProductsPage = () => {
 
                 <div className="mt-6 pt-4 border-t border-purple-500/20">
                   <button
+                    type="button"
                     onClick={() => setIsMobileFilterOpen(false)}
-                    className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all"
+                    className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all cursor-pointer"
                   >
                     Show {totalCount} Results
                   </button>

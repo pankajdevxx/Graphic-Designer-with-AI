@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Layers, ArrowRight, ExternalLink } from 'lucide-react';
 import { PORTFOLIO_PROJECTS } from '../../data/portfolio';
@@ -14,7 +14,10 @@ import SecondaryButton from '../ui/SecondaryButton';
 export const PortfolioSection = () => {
   const [activeFilter, setActiveFilter] = useState('All');
 
-  const categories = ['All', 'Brand Identity', 'UI/UX & Web Design', 'Marketing Creatives', 'Posters & Banners'];
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(PORTFOLIO_PROJECTS.map((p) => p.category)));
+    return ['All', ...cats];
+  }, []);
 
   const filteredProjects =
     activeFilter === 'All'
@@ -38,7 +41,7 @@ export const PortfolioSection = () => {
             <button
               key={cat}
               onClick={() => setActiveFilter(cat)}
-              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 activeFilter === cat
                   ? 'bg-purple-600 text-white shadow-[0_0_20px_rgba(168,85,247,0.4)]'
                   : 'bg-white/[0.04] text-slate-300 hover:text-white hover:bg-white/[0.08] border border-white/8'
@@ -51,19 +54,22 @@ export const PortfolioSection = () => {
 
         {/* Portfolio Showcase Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredProjects.map((project, idx) => (
-            <motion.div
-              key={project.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.5, delay: idx * 0.1 }}
-            >
-              <GlassCard
-                hoverEffect
-                glow="purple"
-                className="group flex flex-col h-full overflow-hidden"
+          <AnimatePresence mode="popLayout">
+            {filteredProjects.map((project, idx) => (
+              <motion.div
+                key={project.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.25 }}
+                className="h-full"
               >
+                <GlassCard
+                  hoverEffect
+                  glow="purple"
+                  className="group flex flex-col h-full overflow-hidden"
+                >
                 {/* Image Container with Zoom and Overlay */}
                 <div className="relative aspect-[16/10] overflow-hidden bg-slate-900">
                   <img
@@ -127,6 +133,7 @@ export const PortfolioSection = () => {
               </GlassCard>
             </motion.div>
           ))}
+          </AnimatePresence>
         </div>
 
         {/* View All Projects Button */}

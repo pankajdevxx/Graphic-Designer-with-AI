@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Sparkles, Star, Eye, ShoppingCart, ArrowRight, X, Download, Check } from 'lucide-react';
@@ -17,7 +17,10 @@ export const FeaturedDesignsSection = () => {
   const [activeCategory, setActiveCategory] = useState('All');
   const [selectedDesign, setSelectedDesign] = useState(null);
 
-  const filterTabs = ['All', 'Brand Identity', 'Website UI Kits', 'Posters & Banners', 'Instagram Posts', 'Mobile App UI'];
+  const filterTabs = useMemo(() => {
+    const cats = Array.from(new Set(FEATURED_DESIGNS.map((d) => d.category)));
+    return ['All', ...cats];
+  }, []);
 
   const filteredDesigns =
     activeCategory === 'All'
@@ -70,108 +73,117 @@ export const FeaturedDesignsSection = () => {
           layout
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8"
         >
-          <AnimatePresence>
+          <AnimatePresence mode="popLayout">
             {filteredDesigns.map((design) => (
-              <GlassCard
+              <motion.div
                 key={design.id}
-                hoverEffect
-                glow="purple"
-                className="group flex flex-col h-full"
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.25 }}
+                className="h-full"
               >
-                {/* Preview Image Thumbnail with Overlay */}
-                <div className="relative aspect-[4/3] overflow-hidden bg-slate-900">
-                  <img
-                    src={design.previewImage}
-                    alt={design.title}
-                    className="w-full h-full object-cover transform group-hover:scale-108 transition-transform duration-700 ease-out"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0d0620] via-transparent to-transparent opacity-80" />
+                <GlassCard
+                  hoverEffect
+                  glow="purple"
+                  className="group flex flex-col h-full"
+                >
+                  {/* Preview Image Thumbnail with Overlay */}
+                  <div className="relative aspect-[4/3] overflow-hidden bg-slate-900">
+                    <img
+                      src={design.previewImage}
+                      alt={design.title}
+                      className="w-full h-full object-cover transform group-hover:scale-108 transition-transform duration-700 ease-out"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0d0620] via-transparent to-transparent opacity-80" />
 
-                  {/* Badge */}
-                  <div className="absolute top-3 left-3">
-                    <span
-                      className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border backdrop-blur-md ${design.badgeColor}`}
-                    >
-                      {design.badge}
-                    </span>
+                    {/* Badge */}
+                    <div className="absolute top-3 left-3">
+                      <span
+                        className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border backdrop-blur-md ${design.badgeColor}`}
+                      >
+                        {design.badge}
+                      </span>
+                    </div>
+
+                    {/* Quick Action Overlay */}
+                    <div className="absolute inset-0 bg-[#06020e]/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => setSelectedDesign(design)}
+                        className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 shadow-xl transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 cursor-pointer"
+                        title="Quick View"
+                      >
+                        <Eye size={18} />
+                      </button>
+                      <button
+                        onClick={() => setSelectedDesign(design)}
+                        className="p-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white shadow-xl shadow-purple-950 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 delay-75 cursor-pointer"
+                        title="Purchase / Details"
+                      >
+                        <ShoppingCart size={18} />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Quick Action Overlay */}
-                  <div className="absolute inset-0 bg-[#06020e]/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-                    <button
-                      onClick={() => setSelectedDesign(design)}
-                      className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 shadow-xl transform translate-y-2 group-hover:translate-y-0 transition-all duration-300"
-                      title="Quick View"
-                    >
-                      <Eye size={18} />
-                    </button>
-                    <button
-                      onClick={() => setSelectedDesign(design)}
-                      className="p-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white shadow-xl shadow-purple-950 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 delay-75"
-                      title="Purchase / Details"
-                    >
-                      <ShoppingCart size={18} />
-                    </button>
-                  </div>
-                </div>
+                  {/* Card Content */}
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-purple-300 mb-2">
+                        <span>{design.category}</span>
+                        <div className="flex items-center gap-1 text-amber-400 font-semibold">
+                          <Star size={12} className="fill-amber-400" />
+                          <span>{design.rating}</span>
+                          <span className="text-slate-400">({design.reviewsCount})</span>
+                        </div>
+                      </div>
 
-                {/* Card Content */}
-                <div className="p-5 flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between text-xs text-purple-300 mb-2">
-                      <span>{design.category}</span>
-                      <div className="flex items-center gap-1 text-amber-400 font-semibold">
-                        <Star size={12} className="fill-amber-400" />
-                        <span>{design.rating}</span>
-                        <span className="text-slate-400">({design.reviewsCount})</span>
+                      <h3 className="text-base font-bold text-white group-hover:text-purple-300 transition-colors line-clamp-1">
+                        {design.title}
+                      </h3>
+
+                      <p className="mt-1.5 text-xs text-slate-300/70 line-clamp-2 leading-relaxed">
+                        {design.description}
+                      </p>
+
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {design.tags.slice(0, 3).map((tag, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-slate-400 border border-white/5"
+                          >
+                            {tag}
+                          </span>
+                        ))}
                       </div>
                     </div>
 
-                    <h3 className="text-base font-bold text-white group-hover:text-purple-300 transition-colors line-clamp-1">
-                      {design.title}
-                    </h3>
-
-                    <p className="mt-1.5 text-xs text-slate-300/70 line-clamp-2 leading-relaxed">
-                      {design.description}
-                    </p>
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {design.tags.slice(0, 3).map((tag, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-slate-400 border border-white/5"
-                        >
-                          {tag}
+                    {/* Pricing and Action */}
+                    <div className="pt-4 mt-4 border-t border-white/10 flex items-center justify-between">
+                      <div>
+                        <span className="text-lg font-black text-white">
+                          ${design.price.toFixed(2)}
                         </span>
-                      ))}
+                        {design.originalPrice && (
+                          <span className="ml-2 text-xs text-slate-400 line-through">
+                            ${design.originalPrice.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => setSelectedDesign(design)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-300 hover:text-white group-hover:translate-x-1 transition-all cursor-pointer"
+                      >
+                        <span>View Design</span>
+                        <ArrowRight size={13} />
+                      </button>
                     </div>
                   </div>
-
-                  {/* Pricing and Action */}
-                  <div className="pt-4 mt-4 border-t border-white/10 flex items-center justify-between">
-                    <div>
-                      <span className="text-lg font-black text-white">
-                        ${design.price.toFixed(2)}
-                      </span>
-                      {design.originalPrice && (
-                        <span className="ml-2 text-xs text-slate-400 line-through">
-                          ${design.originalPrice.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => setSelectedDesign(design)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-300 hover:text-white group-hover:translate-x-1 transition-all"
-                    >
-                      <span>View Design</span>
-                      <ArrowRight size={13} />
-                    </button>
-                  </div>
-                </div>
-              </GlassCard>
+                </GlassCard>
+              </motion.div>
             ))}
           </AnimatePresence>
         </motion.div>

@@ -55,16 +55,26 @@ const ICON_MAP = {
 
 export const MarketplacePage = () => {
   const [activeTab, setActiveTab] = useState('all');
-  const [categories, setCategories] = useState([]);
-  const [tabProducts, setTabProducts] = useState({
-    all: [],
-    featured: [],
-    trending: [],
-    bestsellers: [],
-    new: [],
-    offers: [],
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [categories, setCategories] = useState(() =>
+    CATEGORIES.map((c) => ({
+      id: c.id,
+      name: c.title,
+      slug: c.slug,
+      description: c.description,
+      icon_name: c.iconName,
+      product_count: c.itemCount || 1,
+      accent_color: c.accentColor,
+    }))
+  );
+  const [tabProducts, setTabProducts] = useState(() => ({
+    all: MARKETPLACE_PRODUCTS,
+    featured: MARKETPLACE_PRODUCTS.filter((p) => p.featured),
+    trending: MARKETPLACE_PRODUCTS.filter((p) => p.trending),
+    bestsellers: [...MARKETPLACE_PRODUCTS].sort((a, b) => (parseFloat(b.salesCount) || 0) - (parseFloat(a.salesCount) || 0)),
+    new: MARKETPLACE_PRODUCTS.filter((p) => p.isNew || p.is_new).concat(MARKETPLACE_PRODUCTS.slice(7, 11)),
+    offers: [...MARKETPLACE_PRODUCTS].sort((a, b) => (b.discount || 0) - (a.discount || 0)),
+  }));
+  const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
   const fetchMarketplaceData = async () => {

@@ -105,7 +105,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             queryset = queryset.order_by('price')
         elif sort_by == 'price_desc' or sort_by == 'price-high':
             queryset = queryset.order_by('-price')
-        elif sort_by == 'rating':
+        elif sort_by == 'rating' or sort_by == 'highest-rated':
             queryset = queryset.order_by('-average_rating', '-review_count')
         elif sort_by == 'newest':
             queryset = queryset.order_by('-created_at')
