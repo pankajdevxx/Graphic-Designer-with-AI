@@ -7,24 +7,29 @@ import { CATEGORIES } from '../../data/categories';
 /**
  * ProductSearch Component
  * Interactive search bar with instant drop-down suggestions for products and categories.
+ * Supports both value/onChange/onSearch and initialQuery/onSearchSubmit.
  */
 export const ProductSearch = ({
-  value = '',
+  value,
+  initialQuery,
   onChange,
   onSearch,
+  onSearchSubmit,
   placeholder = 'Search 4,500+ vector logos, UI kits, templates, posters...',
   className = '',
   autoFocus = false,
 }) => {
-  const [query, setQuery] = useState(value);
+  const effectiveInitial = value !== undefined ? value : (initialQuery || '');
+  const [query, setQuery] = useState(effectiveInitial);
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState({ products: [], categories: [] });
   const containerRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    setQuery(value);
-  }, [value]);
+    const nextVal = value !== undefined ? value : (initialQuery || '');
+    setQuery(nextVal);
+  }, [value, initialQuery]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -38,11 +43,13 @@ export const ProductSearch = ({
       (p) =>
         p.title.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q))
+        (p.tags && p.tags.some((t) => t.toLowerCase().includes(q)))
     ).slice(0, 4);
 
-    const matchedCategories = CATEGORIES.filter((c) =>
-      c.title.toLowerCase().includes(q)
+    const matchedCategories = CATEGORIES.filter(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        c.slug.toLowerCase().includes(q)
     ).slice(0, 3);
 
     setSuggestions({ products: matchedProducts, categories: matchedCategories });
@@ -69,15 +76,21 @@ export const ProductSearch = ({
     setQuery('');
     if (onChange) onChange('');
     if (onSearch) onSearch('');
+    if (onSearchSubmit) onSearchSubmit('');
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setIsFocused(false);
+    const trimmed = query.trim();
+    if (onSearchSubmit) {
+      onSearchSubmit(trimmed);
+    }
     if (onSearch) {
-      onSearch(query);
-    } else {
-      navigate(`/marketplace/products?search=${encodeURIComponent(query)}`);
+      onSearch(trimmed);
+    }
+    if (!onSearchSubmit && !onSearch) {
+      navigate(`/marketplace/products?q=${encodeURIComponent(trimmed)}`);
     }
   };
 
@@ -102,7 +115,7 @@ export const ProductSearch = ({
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
             title="Clear search"
           >
             <X size={14} />
@@ -176,7 +189,7 @@ export const ProductSearch = ({
             <button
               type="button"
               onClick={handleSubmit}
-              className="text-xs font-semibold text-purple-300 hover:text-white inline-flex items-center gap-1.5"
+              className="text-xs font-semibold text-purple-300 hover:text-white inline-flex items-center gap-1.5 cursor-pointer"
             >
               <span>View all search results for "{query}"</span>
               <ArrowRight size={12} />
