@@ -157,11 +157,11 @@ export const MarketplaceCategoriesPage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
             {filteredCategories.map((cat) => {
-              const IconComponent = ICON_MAP[cat.icon_name] || Sparkles;
+              const IconComponent = ICON_MAP[cat.icon_name || cat.iconName] || Sparkles;
 
               return (
                 <Link
-                  key={cat.id}
+                  key={cat.id || cat.slug}
                   to={`/marketplace/category/${cat.slug}`}
                   className="block h-full group"
                 >
@@ -175,8 +175,8 @@ export const MarketplaceCategoriesPage = () => {
                         <div
                           className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-lg text-purple-400"
                           style={{
-                            background: `linear-gradient(135deg, ${cat.accent_color}30 0%, ${cat.accent_color}10 100%)`,
-                            border: `1px solid ${cat.accent_color}50`,
+                            background: `linear-gradient(135deg, ${(cat.accent_color || cat.accentColor || '#a855f7')}30 0%, ${(cat.accent_color || cat.accentColor || '#a855f7')}10 100%)`,
+                            border: `1px solid ${(cat.accent_color || cat.accentColor || '#a855f7')}50`,
                           }}
                         >
                           <IconComponent size={22} />
@@ -190,7 +190,7 @@ export const MarketplaceCategoriesPage = () => {
                       </div>
 
                       <h3 className="text-base font-bold text-white group-hover:text-purple-300 transition-colors">
-                        {cat.name}
+                        {cat.name || cat.title}
                       </h3>
 
                       <p className="mt-2 text-xs text-purple-300/70 leading-relaxed line-clamp-3">
@@ -200,7 +200,7 @@ export const MarketplaceCategoriesPage = () => {
 
                     <div className="pt-4 mt-4 border-t border-purple-500/20 flex items-center justify-between text-xs">
                       <span className="text-purple-300 font-semibold">
-                        {cat.product_count} {cat.product_count === 1 ? 'Asset' : 'Assets'}
+                        {cat.product_count ?? cat.itemCount ?? 0} {(cat.product_count ?? cat.itemCount) === 1 ? 'Asset' : 'Assets'}
                       </span>
                       <span className="inline-flex items-center text-purple-400 group-hover:text-white group-hover:translate-x-1 transition-all">
                         <ArrowRight size={14} />

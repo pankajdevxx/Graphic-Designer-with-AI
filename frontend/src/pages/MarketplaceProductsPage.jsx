@@ -15,6 +15,7 @@ import ProductFilter from '../components/marketplace/ProductFilter';
 import ProductSearch from '../components/marketplace/ProductSearch';
 import SortDropdown from '../components/marketplace/SortDropdown';
 import ApiErrorCard from '../components/common/ApiErrorCard';
+import { MARKETPLACE_PRODUCTS } from '../data/marketplaceProducts';
 
 export const MarketplaceProductsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -90,11 +91,35 @@ export const MarketplaceProductsPage = () => {
       const results = Array.isArray(data) ? data : data.results || [];
       const count = data.count !== undefined ? data.count : results.length;
 
-      setProducts(results);
-      setTotalCount(count);
+      if (results.length > 0) {
+        setProducts(results);
+        setTotalCount(count);
+      } else {
+        // Fallback to sample catalog if database currently empty
+        let fallback = [...MARKETPLACE_PRODUCTS];
+        if (filters.category && filters.category !== 'All') {
+          fallback = fallback.filter((p) => (p.category_title || p.category) === filters.category);
+        }
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          fallback = fallback.filter((p) => p.title.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q));
+        }
+        setProducts(fallback);
+        setTotalCount(fallback.length);
+      }
     } catch (err) {
-      console.error('Failed to query products from API:', err);
-      setApiError(err.message || 'Error communicating with backend database.');
+      console.warn('Failed to query products from API, using offline catalog:', err);
+      let fallback = [...MARKETPLACE_PRODUCTS];
+      if (filters.category && filters.category !== 'All') {
+        fallback = fallback.filter((p) => (p.category_title || p.category) === filters.category);
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        fallback = fallback.filter((p) => p.title.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q));
+      }
+      setProducts(fallback);
+      setTotalCount(fallback.length);
+      setApiError('Django backend is offline or starting up. Showing cached design catalog.');
     } finally {
       setIsLoading(false);
     }
@@ -311,19 +336,32 @@ export const MarketplaceProductsPage = () => {
 
           {/* Product Grid Area or API Error */}
           <div className="lg:col-span-3">
-            {apiError ? (
+            {apiError && products.length === 0 ? (
               <ApiErrorCard
                 title="Failed to Load Catalog"
                 message={apiError}
                 onRetry={fetchProducts}
               />
             ) : (
-              <ProductGrid
-                products={products}
-                columns={3}
-                isLoading={isLoading}
-                onResetFilters={handleResetFilters}
-              />
+              <>
+                {apiError && (
+                  <div className="mb-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-200">
+                    <span>{apiError}</span>
+                    <button
+                      onClick={fetchProducts}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-white font-medium transition-colors"
+                    >
+                      Retry Live Connection
+                    </button>
+                  </div>
+                )}
+                <ProductGrid
+                  products={products}
+                  columns={3}
+                  isLoading={isLoading}
+                  onResetFilters={handleResetFilters}
+                />
+              </>
             )}
           </div>
         </div>
