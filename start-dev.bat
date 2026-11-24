@@ -20,7 +20,7 @@ if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
     start http://localhost:5173/
 )
 
-echo ==================================================
+echo ================================================
 echo Servers started successfully!
 echo Frontend: http://localhost:5173/
 echo Backend Health: http://localhost:8000/api/health/
