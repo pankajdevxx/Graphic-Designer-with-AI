@@ -11,11 +11,13 @@ import { Search } from 'lucide-react';
 export const ProductGrid = ({
   products = [],
   loading = false,
+  isLoading = false,
   columns = 4,
   emptyMessage = 'No creative design products match your active search and filter criteria.',
   onResetFilters,
 }) => {
-  if (loading) {
+  const isBusy = loading || isLoading;
+  if (isBusy) {
     return <LoadingSkeleton count={8} />;
   }
 

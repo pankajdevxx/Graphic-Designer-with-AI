@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
   TrendingUp,
@@ -54,9 +54,10 @@ const ICON_MAP = {
 };
 
 export const MarketplacePage = () => {
-  const [activeTab, setActiveTab] = useState('featured');
+  const [activeTab, setActiveTab] = useState('all');
   const [categories, setCategories] = useState([]);
   const [tabProducts, setTabProducts] = useState({
+    all: [],
     featured: [],
     trending: [],
     bestsellers: [],
@@ -72,13 +73,15 @@ export const MarketplacePage = () => {
     try {
       const results = await Promise.allSettled([
         categoryService.getAllCategories(),
+        productService.getProducts({ page_size: 12 }),
         productService.getFeaturedProducts(8),
         productService.getTrendingProducts(8),
+        productService.getBestSellers(8),
         productService.getNewArrivals(8),
-        productService.getProducts({ on_sale: true, page_size: 8 }),
+        productService.getSpecialOffers(8),
       ]);
 
-      const [catsRes, featRes, trendRes, newArrRes, offersRes] = results;
+      const [catsRes, allRes, featRes, trendRes, bestRes, newArrRes, offersRes] = results;
 
       // Extract categories from API or use built-in 15 disciplines
       let loadedCats = [];
@@ -99,22 +102,32 @@ export const MarketplacePage = () => {
       }
       setCategories(loadedCats);
 
-      // Extract products from API
+      // Extract distinct products for each tab from API
+      const allVal = allRes.status === 'fulfilled' ? allRes.value : null;
+      const allProd = Array.isArray(allVal) ? allVal : allVal?.results;
+
       const feat = (featRes.status === 'fulfilled' && Array.isArray(featRes.value) && featRes.value.length > 0) ? featRes.value : null;
       const trend = (trendRes.status === 'fulfilled' && Array.isArray(trendRes.value) && trendRes.value.length > 0) ? trendRes.value : null;
+      const best = (bestRes.status === 'fulfilled' && Array.isArray(bestRes.value) && bestRes.value.length > 0) ? bestRes.value : null;
       const newArr = (newArrRes.status === 'fulfilled' && Array.isArray(newArrRes.value) && newArrRes.value.length > 0) ? newArrRes.value : null;
       const offersVal = offersRes.status === 'fulfilled' ? offersRes.value : null;
       const offers = Array.isArray(offersVal) ? offersVal : offersVal?.results;
 
-      // Local fallback dataset
-      const sampleFallback = MARKETPLACE_PRODUCTS.slice(0, 8);
+      // Local fallback distinct datasets
+      const fbAll = MARKETPLACE_PRODUCTS;
+      const fbFeat = MARKETPLACE_PRODUCTS.filter((p) => p.featured);
+      const fbTrend = MARKETPLACE_PRODUCTS.filter((p) => p.trending);
+      const fbBest = [...MARKETPLACE_PRODUCTS].sort((a, b) => (parseFloat(b.salesCount) || 0) - (parseFloat(a.salesCount) || 0));
+      const fbNew = MARKETPLACE_PRODUCTS.filter((p) => p.isNew || p.is_new).concat(MARKETPLACE_PRODUCTS.slice(7, 11));
+      const fbOffers = [...MARKETPLACE_PRODUCTS].sort((a, b) => (b.discount || 0) - (a.discount || 0));
 
       setTabProducts({
-        featured: feat || sampleFallback,
-        trending: trend || sampleFallback,
-        bestsellers: trend || sampleFallback,
-        new: newArr || sampleFallback,
-        offers: (offers && offers.length > 0) ? offers : sampleFallback,
+        all: (allProd && allProd.length > 0) ? allProd : fbAll,
+        featured: feat || fbFeat,
+        trending: trend || fbTrend,
+        bestsellers: best || fbBest,
+        new: newArr || fbNew,
+        offers: (offers && offers.length > 0) ? offers : fbOffers,
       });
 
       // If backend was completely unreachable, notify user softly without blocking UI
@@ -134,13 +147,13 @@ export const MarketplacePage = () => {
         product_count: c.itemCount || 1,
         accent_color: c.accentColor,
       })));
-      const sampleFallback = MARKETPLACE_PRODUCTS.slice(0, 8);
       setTabProducts({
-        featured: sampleFallback,
-        trending: sampleFallback,
-        bestsellers: sampleFallback,
-        new: sampleFallback,
-        offers: sampleFallback,
+        all: MARKETPLACE_PRODUCTS,
+        featured: MARKETPLACE_PRODUCTS.filter((p) => p.featured),
+        trending: MARKETPLACE_PRODUCTS.filter((p) => p.trending),
+        bestsellers: [...MARKETPLACE_PRODUCTS].sort((a, b) => (parseFloat(b.salesCount) || 0) - (parseFloat(a.salesCount) || 0)),
+        new: MARKETPLACE_PRODUCTS.filter((p) => p.isNew || p.is_new).concat(MARKETPLACE_PRODUCTS.slice(7, 11)),
+        offers: [...MARKETPLACE_PRODUCTS].sort((a, b) => (b.discount || 0) - (a.discount || 0)),
       });
       setApiError('Django backend is starting or offline. Showing cached design catalog.');
     } finally {
@@ -215,11 +228,12 @@ export const MarketplacePage = () => {
           {/* Collection Filter Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-8 no-scrollbar">
             {[
-              { id: 'featured', label: 'Featured Picks', icon: Sparkles },
-              { id: 'trending', label: 'Trending Now', icon: TrendingUp },
-              { id: 'bestsellers', label: 'Best Sellers', icon: Award },
-              { id: 'new', label: 'New Arrivals', icon: Clock },
-              { id: 'offers', label: 'Special Offers', icon: Tag },
+              { id: 'all', label: 'All Templates', icon: Layers, count: tabProducts.all?.length },
+              { id: 'featured', label: 'Featured Picks', icon: Sparkles, count: tabProducts.featured?.length },
+              { id: 'trending', label: 'Trending Now', icon: TrendingUp, count: tabProducts.trending?.length },
+              { id: 'bestsellers', label: 'Best Sellers', icon: Award, count: tabProducts.bestsellers?.length },
+              { id: 'new', label: 'New Arrivals', icon: Clock, count: tabProducts.new?.length },
+              { id: 'offers', label: 'Special Offers', icon: Tag, count: tabProducts.offers?.length },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -227,14 +241,25 @@ export const MarketplacePage = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2.5 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-all duration-300 ${
+                  className={`px-4 py-2.5 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-all duration-300 cursor-pointer ${
                     isActive
-                      ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-[0_0_20px_rgba(168,85,247,0.4)]'
-                      : 'bg-[#12092b]/70 border border-purple-500/20 text-purple-300 hover:text-white hover:border-purple-500/40'
+                      ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-[0_0_20px_rgba(168,85,247,0.4)] scale-105'
+                      : 'bg-[#12092b]/70 border border-purple-500/20 text-purple-300 hover:text-white hover:border-purple-500/40 hover:bg-[#1a0e3a]'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span>{tab.label}</span>
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-purple-950/80 text-purple-300 border border-purple-500/30'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -260,11 +285,21 @@ export const MarketplacePage = () => {
                   </button>
                 </div>
               )}
-              <ProductGrid
-                products={getActiveProducts()}
-                columns={4}
-                isLoading={isLoading}
-              />
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -14 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                >
+                  <ProductGrid
+                    products={getActiveProducts()}
+                    columns={4}
+                    isLoading={isLoading}
+                  />
+                </motion.div>
+              </AnimatePresence>
             </>
           )}
 

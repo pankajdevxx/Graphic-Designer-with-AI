@@ -53,6 +53,28 @@ export const productService = {
   },
 
   /**
+   * Retrieve best-selling products ordered by sales velocity
+   * @param {number} limit
+   */
+  async getBestSellers(limit = 8) {
+    const response = await apiClient.get('/products/bestsellers/', {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  /**
+   * Retrieve special offers and discounted assets
+   * @param {number} limit
+   */
+  async getSpecialOffers(limit = 8) {
+    const response = await apiClient.get('/products/offers/', {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  /**
    * Retrieve category-specific related products
    * @param {string} slug
    * @param {number} limit
