@@ -24,6 +24,6 @@ echo ==============================================
 echo Servers started successfully!
 echo Frontend: http://localhost:5173/
 echo Backend Health: http://localhost:8000/api/health/
-echo ================================================
+echo ===============================================
 pause
 
