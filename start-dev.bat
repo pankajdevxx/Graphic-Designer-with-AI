@@ -5,7 +5,7 @@ echo ===================================================
 
 cd /d "%~dp0"
 
-echo [1/3] Starting Django Backend on port 8000...
+echo [1/3] Starting Django Backend on port 8000..
 start "PixelGen Backend (Django)" cmd /k "cd backend && venv\Scripts\activate && python manage.py runserver 8000"
 
 echo [2/3] Starting Vite Frontend on port 5173...
