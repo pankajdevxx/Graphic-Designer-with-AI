@@ -13,7 +13,7 @@ start "PixelGen Frontend (Vite)" cmd /k "cd frontend && npm run dev"
 
 timeout /t 3 /nobreak >nul
 
-echo [3/3] Opening application in Chrome...
+echo [3/3] Opening application in Chrome....
 if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
     start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" http://localhost:5173/
 ) else (
