@@ -24,6 +24,7 @@ import categoryService from '../services/categoryService';
 import Container from '../components/ui/Container';
 import GlassCard from '../components/ui/GlassCard';
 import ApiErrorCard from '../components/common/ApiErrorCard';
+import { CATEGORIES } from '../data/categories';
 
 const ICON_MAP = {
   Sparkles,
@@ -54,10 +55,33 @@ export const MarketplaceCategoriesPage = () => {
     setApiError(null);
     try {
       const data = await categoryService.getAllCategories();
-      setCategories(Array.isArray(data) ? data : data.results || []);
+      const results = Array.isArray(data) ? data : data.results || [];
+      if (results.length > 0) {
+        setCategories(results);
+      } else {
+        setCategories(CATEGORIES.map(c => ({
+          id: c.id,
+          name: c.title,
+          slug: c.slug,
+          description: c.description,
+          icon_name: c.iconName,
+          accent_color: c.accentColor,
+          badge: c.badge,
+          product_count: c.itemCount || 1,
+        })));
+      }
     } catch (err) {
-      console.error('Failed to load categories:', err);
-      setApiError(err.message || 'Unable to connect to MySQL database.');
+      console.warn('Failed to load categories from API, using catalog data:', err);
+      setCategories(CATEGORIES.map(c => ({
+        id: c.id,
+        name: c.title,
+        slug: c.slug,
+        description: c.description,
+        icon_name: c.iconName,
+        accent_color: c.accentColor,
+        badge: c.badge,
+        product_count: c.itemCount || 1,
+      })));
     } finally {
       setIsLoading(false);
     }
@@ -69,8 +93,8 @@ export const MarketplaceCategoriesPage = () => {
 
   const filteredCategories = categories.filter(
     (c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.description.toLowerCase().includes(searchTerm.toLowerCase())
+      (c.name || c.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

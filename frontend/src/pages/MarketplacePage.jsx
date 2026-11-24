@@ -32,6 +32,8 @@ import MarketplaceHero from '../components/marketplace/MarketplaceHero';
 import ProductGrid from '../components/marketplace/ProductGrid';
 import PromoBanner from '../components/marketplace/PromoBanner';
 import ApiErrorCard from '../components/common/ApiErrorCard';
+import { CATEGORIES } from '../data/categories';
+import { MARKETPLACE_PRODUCTS } from '../data/marketplaceProducts';
 
 const ICON_MAP = {
   Sparkles,
@@ -68,7 +70,7 @@ export const MarketplacePage = () => {
     setIsLoading(true);
     setApiError(null);
     try {
-      const [cats, feat, trend, newArr, offers] = await Promise.all([
+      const results = await Promise.allSettled([
         categoryService.getAllCategories(),
         productService.getFeaturedProducts(8),
         productService.getTrendingProducts(8),
@@ -76,17 +78,71 @@ export const MarketplacePage = () => {
         productService.getProducts({ on_sale: true, page_size: 8 }),
       ]);
 
-      setCategories(Array.isArray(cats) ? cats : cats.results || []);
+      const [catsRes, featRes, trendRes, newArrRes, offersRes] = results;
+
+      // Extract categories from API or use built-in 15 disciplines
+      let loadedCats = [];
+      if (catsRes.status === 'fulfilled' && catsRes.value) {
+        const val = catsRes.value;
+        loadedCats = Array.isArray(val) ? val : val.results || [];
+      }
+      if (!loadedCats || loadedCats.length === 0) {
+        loadedCats = CATEGORIES.map((c) => ({
+          id: c.id,
+          name: c.title,
+          slug: c.slug,
+          description: c.description,
+          icon_name: c.iconName,
+          product_count: c.itemCount || 1,
+          accent_color: c.accentColor,
+        }));
+      }
+      setCategories(loadedCats);
+
+      // Extract products from API
+      const feat = (featRes.status === 'fulfilled' && Array.isArray(featRes.value) && featRes.value.length > 0) ? featRes.value : null;
+      const trend = (trendRes.status === 'fulfilled' && Array.isArray(trendRes.value) && trendRes.value.length > 0) ? trendRes.value : null;
+      const newArr = (newArrRes.status === 'fulfilled' && Array.isArray(newArrRes.value) && newArrRes.value.length > 0) ? newArrRes.value : null;
+      const offersVal = offersRes.status === 'fulfilled' ? offersRes.value : null;
+      const offers = Array.isArray(offersVal) ? offersVal : offersVal?.results;
+
+      // Local fallback dataset
+      const sampleFallback = MARKETPLACE_PRODUCTS.slice(0, 8);
+
       setTabProducts({
-        featured: feat || [],
-        trending: trend || [],
-        bestsellers: trend || [], // Bestsellers mapped to high sales velocity
-        new: newArr || [],
-        offers: offers?.results || offers || [],
+        featured: feat || sampleFallback,
+        trending: trend || sampleFallback,
+        bestsellers: trend || sampleFallback,
+        new: newArr || sampleFallback,
+        offers: (offers && offers.length > 0) ? offers : sampleFallback,
       });
+
+      // If backend was completely unreachable, notify user softly without blocking UI
+      if (results.every((r) => r.status === 'rejected')) {
+        setApiError('Django backend is starting or offline. Showing cached design catalog.');
+      } else {
+        setApiError(null);
+      }
     } catch (err) {
-      console.error('Marketplace API fetch failed:', err);
-      setApiError(err.message || 'Unable to connect to Django API.');
+      console.warn('Marketplace API fetch caught error, using offline catalog:', err);
+      setCategories(CATEGORIES.map((c) => ({
+        id: c.id,
+        name: c.title,
+        slug: c.slug,
+        description: c.description,
+        icon_name: c.iconName,
+        product_count: c.itemCount || 1,
+        accent_color: c.accentColor,
+      })));
+      const sampleFallback = MARKETPLACE_PRODUCTS.slice(0, 8);
+      setTabProducts({
+        featured: sampleFallback,
+        trending: sampleFallback,
+        bestsellers: sampleFallback,
+        new: sampleFallback,
+        offers: sampleFallback,
+      });
+      setApiError('Django backend is starting or offline. Showing cached design catalog.');
     } finally {
       setIsLoading(false);
     }
@@ -185,18 +241,31 @@ export const MarketplacePage = () => {
           </div>
 
           {/* Products Grid or Error State */}
-          {apiError ? (
+          {apiError && getActiveProducts().length === 0 ? (
             <ApiErrorCard
               title="Marketplace Data Unavailable"
               message={apiError}
               onRetry={fetchMarketplaceData}
             />
           ) : (
-            <ProductGrid
-              products={getActiveProducts()}
-              columns={4}
-              isLoading={isLoading}
-            />
+            <>
+              {apiError && (
+                <div className="mb-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-200">
+                  <span>{apiError}</span>
+                  <button
+                    onClick={fetchMarketplaceData}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-white font-medium transition-colors"
+                  >
+                    Retry Live Connection
+                  </button>
+                </div>
+              )}
+              <ProductGrid
+                products={getActiveProducts()}
+                columns={4}
+                isLoading={isLoading}
+              />
+            </>
           )}
 
           {/* Explore Catalog CTA */}
@@ -229,10 +298,10 @@ export const MarketplacePage = () => {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
             {categories.map((cat) => {
-              const IconComponent = ICON_MAP[cat.icon_name] || Sparkles;
+              const IconComponent = ICON_MAP[cat.icon_name || cat.iconName] || Sparkles;
               return (
                 <Link
-                  key={cat.id}
+                  key={cat.id || cat.slug}
                   to={`/marketplace/category/${cat.slug}`}
                   className="group p-4 rounded-2xl bg-[#12092b]/60 border border-purple-500/20 hover:border-purple-500/50 backdrop-blur-md hover:shadow-[0_10px_25px_rgba(168,85,247,0.2)] transition-all duration-300 flex flex-col items-center text-center"
                 >
@@ -240,10 +309,10 @@ export const MarketplacePage = () => {
                     <IconComponent className="w-6 h-6" />
                   </div>
                   <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-300 transition-colors line-clamp-1 mb-1">
-                    {cat.name}
+                    {cat.name || cat.title}
                   </h3>
                   <span className="text-[11px] text-purple-400/80">
-                    {cat.product_count} {cat.product_count === 1 ? 'asset' : 'assets'}
+                    {cat.product_count ?? cat.itemCount ?? 0} {(cat.product_count ?? cat.itemCount) === 1 ? 'asset' : 'assets'}
                   </span>
                 </Link>
               );
